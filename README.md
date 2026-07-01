@@ -1,75 +1,7 @@
-# Quasi-Symmetry Simulation Framework
+# Testing reversibility in viral evolution
 
-This repository contains a hybrid Python/C++ framework for simulating nucleotide substitution processes and evaluating quasi-symmetry statistics.
-
-The project combines:
-
-- **Python**
-  - experiment orchestration
-  - statistical analysis
-  - plotting
-  - notebooks
-
-with
-
-- **C++**
-  - fast sequence simulation
-  - matrix exponential computation
-  - Markov model simulation
-  - pybind11 bindings
-
-The C++ components are exposed to Python using `pybind11`.
-
----
-
-# Repository Structure
-
-```text
-quasi_symmetry/
-│
-├── cpp/                # C++ source files + build script
-├── build/              # Compiled Python extension modules (.so)
-├── scripts/
-│   └── python/
-│       ├── experiments/
-│       ├── analysis/
-│       └── notebooks/
-│
-├── data/
-│
-├── requirements.txt
-└── README.md
-```
-
----
-
-# Requirements
-
-## macOS
-
-Install:
-
-- Homebrew
-- Python 3.14+
-- Eigen
-
-### Install Homebrew
-
-See:
-
-https://brew.sh/
-
-### Install Python
-
-```bash
-brew install python
-```
-
-### Install Eigen
-
-```bash
-brew install eigen
-```
+This repository contains codes to reproduce the manuscript "A statistical framework to distinguish stationarity from reversibility in viral evolution". 
+The code for the simulation studies is found at [scripts/simulation](https://github.com/NilsGubela/testing_reversibility/tree/main/scripts/simulation) and scripts for the analysis of SARS-CoV-2 genomic sequences at [scripts/sequence_analysis](https://github.com/NilsGubela/testing_reversibility/tree/main/scripts/sequence_analysis). Functions are written in C++ and compiled to python modules.
 
 ---
 
@@ -152,78 +84,6 @@ mat_exp_cpp.cpython-314-darwin.so
 ...
 ```
 
----
-
-# Example build.sh
-
-```bash
-#!/bin/bash
-
-mkdir -p ../build
-
-CXXFLAGS="-O3 -Wall -shared -std=c++17"
-
-PYBIND="$(python -m pybind11 --includes)"
-
-PYTHON_INC="$(python3-config --includes)"
-
-EXT="$(python3-config --extension-suffix)"
-
-EIGEN="-I/opt/homebrew/include/eigen3"
-
-compile_module () {
-    SRC=$1
-    NAME=$2
-
-    c++ $CXXFLAGS \
-        -undefined dynamic_lookup \
-        $PYBIND \
-        $PYTHON_INC \
-        $EIGEN \
-        $SRC \
-        -o ../build/${NAME}${EXT}
-}
-
-compile_module rand_seq.cpp rand_seq_cpp
-compile_module seq_sim.cpp seq_sim_cpp
-compile_module mat_exp.cpp mat_exp_cpp
-compile_module div_mat.cpp div_mat_cpp
-compile_module rate_matrix.cpp rate_matrix_cpp
-```
-
----
-
-# Important Notes About Python Versions
-
-The Python version used for:
-
-- creating the virtual environment
-- compiling the C++ extensions
-- running the Python scripts
-
-MUST be the same.
-
-Verify:
-
-```bash
-python --version
-```
-
-and:
-
-```bash
-python3-config --extension-suffix
-```
-
-Example:
-
-```text
-Python 3.14
-.cpython-314-darwin.so
-```
-
----
-
 # Running Experiments
 
 Activate the virtual environment:
@@ -236,44 +96,6 @@ Then run experiments:
 
 ```bash
 cd scripts/python/experiments
-
-python stationary_nonreversible.py
-```
-
----
-
-# Importing the Compiled Modules
-
-Python scripts should add the `build/` directory to the path.
-
-Example:
-
-```python
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[3]
-
-sys.path.append(str(ROOT / "build"))
-
-import rand_seq_cpp
-import seq_sim_cpp
-import mat_exp_cpp
-```
-
----
-
-# Development Workflow
-
-Typical workflow:
-
-```bash
-source .venv/bin/activate
-
-cd cpp
-./build.sh
-
-cd ../scripts/python/experiments
 
 python stationary_nonreversible.py
 ```
@@ -335,17 +157,3 @@ The resulting alignment is written to:
 ```text
 data/processed/aligned.fasta
 ```
-
-## Notes
-
-* `--addfragments` aligns query sequences to the reference without altering the reference alignment.
-* `--keeplength` preserves the reference genome length and removes insertions relative to the reference.
-* For reproducibility, it is recommended to record the MAFFT version used for the alignment.
-
-
-# Notes
-
-- Heavy numerical computations are implemented in C++ for speed.
-- Python is used for high-level experiment management and analysis.
-- Matrix operations use Eigen.
-- Python bindings use pybind11.
