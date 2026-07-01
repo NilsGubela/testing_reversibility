@@ -1,0 +1,4 @@
+/data/raw/*
+/data/processed/*
+/scripts/build/
+.DS_Store
