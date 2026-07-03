@@ -1,3 +1,5 @@
+![](https://img.shields.io/github/v/release/NilsGubela/testing_reversibility)
+
 # Testing reversibility in viral evolution
 
 This repository contains codes to reproduce the manuscript "A statistical framework to distinguish stationarity from reversibility in viral evolution". 
