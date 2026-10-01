@@ -1,12 +1,14 @@
 import numpy as np
 import sys
 from pathlib import Path
-from util import *
 from tqdm import tqdm
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOT2 = Path(__file__).resolve().parents[2]
+
+sys.path.append(str(ROOT))
+from util import *
 
 sys.path.append(str(ROOT / "build"))
 
@@ -39,6 +41,7 @@ def main():
     res_s = []
     res_qs = []
     res_mut = []
+    res_qs3 = []
 
     master_seed = 12345
 
@@ -78,8 +81,7 @@ def main():
             stat_b = np.nan
             stat_s = np.nan
             stat_qs = np.nan
-            #for s in range(4):
-            #    res_sm[s].append(np.nan)
+            stat_qs3 = np.nan
         
         else:
 
@@ -88,12 +90,14 @@ def main():
             stat_b = bowker_stat(m,B)
             stat_s = stuart_from_counts(H)
             stat_qs = qs_test(H, n)
+            stat_qs3 = qs_test(H, n, 3)
 
         i += 1
         res_t.append(t2)
         res_b.append(stat_b)
         res_s.append(stat_s)
         res_qs.append(stat_qs)
+        res_qs3.append(stat_qs3)
         np.fill_diagonal(mat_no_diag, 0)
         res_mut.append(np.sum(mat_no_diag))
         count += 1
@@ -108,7 +112,7 @@ def main():
 
     out_path = out_dir / "figure1/result_nonstationary_reversible_cherry.csv"
 
-    pd.DataFrame({"t2": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "mut_sum": res_mut}).to_csv(out_path, index=False)
+    pd.DataFrame({"t2": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "QS3": res_qs3, "mut_sum": res_mut}).to_csv(out_path, index=False)
     print(f"Saved {len(res_b)} sims to: {out_path}")
 
 

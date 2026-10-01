@@ -128,6 +128,190 @@ Eigen::Matrix4d get_Q_nonrev(uint32_t seed = 42)
     return out / sum;
 }
 
+Eigen::Matrix4d get_Q_nonrev_from_pi(const Eigen::Vector4d& d, uint32_t seed = 42)
+{
+    std::mt19937 generator(seed);
+    std::uniform_real_distribution<double> dis(0.0, 1.0);
+
+    Eigen::Vector4d row_sum;
+    Eigen::Matrix4d psi = get_diag(d);
+    Eigen::Matrix4d S = Eigen::Matrix4d::Zero();
+    Eigen::Matrix4d out;
+
+    double sum = 0.0;
+
+    // Nonreversible constrained matrix
+    S(0,1) = dis(generator);
+    S(0,2) = dis(generator);
+    S(0,3) = dis(generator);
+
+    S(1,0) = dis(generator);
+    S(1,2) = dis(generator);
+    S(1,3) = dis(generator);
+
+    S(2,0) = S(0,2);
+    S(2,1) = S(0,3);
+    S(2,3) = S(0,1);
+
+    S(3,0) = S(1,2);
+    S(3,1) = S(1,3);
+    S(3,2) = S(1,0);
+
+    out = S * psi;
+    row_sum = out.rowwise().sum();
+
+    sum = 0.0;
+
+    // Set diagonal entries
+    for (int i = 0; i < 4; i++) {
+        out(i,i) = -row_sum(i);
+        sum -= out(i,i) * d(i);
+    }
+
+    // Normalize mean substitution rate
+    return out / sum;
+}
+
+
+Eigen::Vector4d get_pi(uint32_t seed = 42)
+{
+    std::mt19937 generator(seed);
+    std::uniform_real_distribution<double> dis(0.0, 1.0);
+
+    Eigen::Vector4d d;
+    double sum = 0.0;
+
+    for (int i = 0; i < 4; i++) {
+        d(i) = dis(generator);
+        sum += d(i);
+    }
+
+    d /= sum;
+    return d;
+}
+
+Eigen::Matrix4d get_Q_from_pi(const Eigen::Vector4d& d, uint32_t seed = 42)
+{
+    std::mt19937 generator(seed);
+    std::uniform_real_distribution<double> dis(0.0, 1.0);
+
+    Eigen::Vector4d row_sum;
+    Eigen::Matrix4d psi = get_diag(d);
+    Eigen::Matrix4d S = Eigen::Matrix4d::Zero();
+    Eigen::Matrix4d Q;
+
+    double sum = 0.0;
+
+    // Symmetric exchangeability matrix
+    for (int i = 0; i < 4; i++) {
+        for (int j = i + 1; j < 4; j++) {
+            S(i, j) = dis(generator);
+            S(j, i) = S(i, j);
+        }
+    }
+
+    Q = S * psi;
+    row_sum = Q.rowwise().sum();
+
+    // Set diagonal entries and compute normalization
+    sum = 0.0;
+    for (int i = 0; i < 4; i++) {
+        Q(i, i) = -row_sum(i);
+        sum -= Q(i, i) * d(i);
+    }
+
+    // Normalize mean substitution rate to 1
+    return Q / sum;
+}
+
+Eigen::Matrix4d get_HKY_from_pi(const Eigen::Vector4d& d, uint32_t seed = 42)
+{
+    std::mt19937 generator(seed);
+    std::uniform_real_distribution<double> dis(0.0, 1.0);
+
+    Eigen::Vector4d row_sum;
+    Eigen::Matrix4d psi = get_diag(d);
+    Eigen::Matrix4d S = Eigen::Matrix4d::Zero();
+    Eigen::Matrix4d Q;
+
+    double sum = 0.0;
+    double a = dis(generator);
+    double b = dis(generator);
+
+    // Symmetric exchangeability matrix
+    S(0,1) = b;
+    S(1,0) = b;
+    S(0,2) = a;
+    S(2,0) = a;
+    S(0,3) = b;
+    S(3,0) = b;
+    S(1,2) = b;
+    S(2,1) = b;
+    S(1,3) = a;
+    S(3,1) = a;
+    S(2,3) = b;
+    S(3,2) = b;
+
+    Q = S * psi;
+    row_sum = Q.rowwise().sum();
+
+    // Set diagonal entries and compute normalization
+    sum = 0.0;
+    for (int i = 0; i < 4; i++) {
+        Q(i, i) = -row_sum(i);
+        sum -= Q(i, i) * d(i);
+    }
+
+    // Normalize mean substitution rate to 1
+    return Q / sum;
+}
+
+
+Eigen::Matrix4d get_HKY_from_pi_a(const Eigen::Vector4d& d, double a, uint32_t seed = 42)
+{
+    std::mt19937 generator(seed);
+    std::uniform_real_distribution<double> dis(0.0, 1.0);
+
+    Eigen::Vector4d row_sum;
+    Eigen::Matrix4d psi = get_diag(d);
+    Eigen::Matrix4d S = Eigen::Matrix4d::Zero();
+    Eigen::Matrix4d Q;
+
+    double sum = 0.0;
+    double b = (1-a)/2;
+
+    // Symmetric exchangeability matrix
+    S(0,1) = b;
+    S(1,0) = b;
+    S(0,2) = a;
+    S(2,0) = a;
+    S(0,3) = b;
+    S(3,0) = b;
+    S(1,2) = b;
+    S(2,1) = b;
+    S(1,3) = a;
+    S(3,1) = a;
+    S(2,3) = b;
+    S(3,2) = b;
+
+    Q = S * psi;
+    row_sum = Q.rowwise().sum();
+
+    // Set diagonal entries and compute normalization
+    sum = 0.0;
+    for (int i = 0; i < 4; i++) {
+        Q(i, i) = -row_sum(i);
+        sum -= Q(i, i) * d(i);
+    }
+
+    // Normalize mean substitution rate to 1
+    return Q / sum;
+}
+
+
+
+
+
 PYBIND11_MODULE(rate_matrix_cpp, m)
 {
     m.doc() = "Random reversible and nonreversible rate matrices";
@@ -145,4 +329,44 @@ PYBIND11_MODULE(rate_matrix_cpp, m)
         py::arg("seed") = 42,
         "Generate nonreversible 4x4 rate matrix"
     );
+
+    m.def(
+        "get_Q_from_pi",
+        &get_Q_from_pi,
+        py::arg("d"),
+        py::arg("seed") = 42,
+        "Generate reversible 4x4 rate matrix from a provided stationary distribution pi"
+    );
+
+    m.def(
+        "get_HKY_from_pi",
+        &get_HKY_from_pi,
+        py::arg("d"),
+        py::arg("seed") = 42,
+        "Generate HKY reversible 4x4 rate matrix from a provided stationary distribution pi"
+    );
+
+    m.def(
+        "get_HKY_from_pi_a",
+        &get_HKY_from_pi_a,
+        py::arg("d"),
+        py::arg("a"),
+        py::arg("seed") = 42,
+        "Generate HKY reversible 4x4 rate matrix from a provided stationary distribution pi and a"
+    );
+
+    m.def(
+        "get_Q_nonrev_from_pi",
+        &get_Q_nonrev_from_pi,
+        py::arg("d"),
+        py::arg("seed") = 42,
+        "Generate nonreversible 4x4 rate matrix from a provided stationary distribution pi"
+    );
+
+    m.def(
+        "get_pi",
+        &get_pi,
+        py::arg("seed") = 42,
+        "Generate stationary distribution pi"
+);
 }

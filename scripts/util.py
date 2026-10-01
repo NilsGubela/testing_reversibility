@@ -1,4 +1,5 @@
 import numpy as np
+import numpy as np
 from scipy.linalg import expm
 
 
@@ -99,15 +100,26 @@ def random_nonreversible_Q4(seed=1):
 
 
 def check_detailed_balance(Q, pi, atol=1e-10):
-    """
-    Returns max absolute deviation from detailed balance:
-        pi_i q_ij == pi_j q_ji
-    """
     Q = np.asarray(Q, float)
     pi = np.asarray(pi, float)
     K = Q.shape[0]
     M = pi[:, None] * Q
     return np.max(np.abs(M - M.T) * (1 - np.eye(K))), np.allclose(M, M.T, atol=atol)
+
+def return_detailed_balance(Q, pi):
+    Q = np.asarray(Q, dtype=float)
+    pi = np.asarray(pi, dtype=float).reshape(-1)
+
+    if Q.ndim != 2 or Q.shape[0] != Q.shape[1]:
+        raise ValueError(f"Q must be square, got shape {Q.shape}")
+
+    K = Q.shape[0]
+
+    if pi.shape[0] != K:
+        raise ValueError(f"pi must have length {K}, got shape {pi.shape}")
+
+    M = pi[:, None] * Q
+    return float(np.sum(np.abs(M - M.T)))
 
 
 NUCS = np.array(list("ACGT"))
@@ -120,10 +132,6 @@ def random_seq(n, freqs=(0.25,0.25,0.25,0.25), seed = 1):
     return "".join(np.random.choice(NUCS, size=n, p=freqs))
 
 def evolve_discrete(seq, P, seed = 1):
-    """
-    seq: string of A/C/G/T
-    P: 4x4 row-stochastic transition matrix; P[i,j]=Pr(i->j) in one step
-    """
     np.random.seed(seed)
     P = np.asarray(P, dtype=float)
     x = np.fromiter((IDX[c] for c in seq), dtype=int)
@@ -135,10 +143,6 @@ def evolve_discrete(seq, P, seed = 1):
     return "".join(NUCS[y])
 
 def evolve_ctmc(seq, Q, t, seed = 1):
-    """
-    Q: 4x4 rate matrix (rows sum to 0, off-diagonals >=0)
-    t: branch length / time
-    """
     P = expm(np.asarray(Q, dtype=float) * t)
     return evolve_discrete(seq, P, seed = seed)
 
@@ -146,23 +150,7 @@ def evolve_ctmc(seq, Q, t, seed = 1):
 
 
 def sequence_diversity_matrix_two_sequences(seq1, seq2):
-    """
-    Sequence diversity matrix for TWO aligned sequences (same length).
 
-    Output M is 4x4 where:
-      M[i,j] = fraction of sites where seq1 has alphabet[i] and seq2 has alphabet[j].
-
-    So M sums to 1. Row sums = composition of seq1, column sums = composition of seq2.
-
-    Parameters
-    ----------
-    seq1, seq2 : str (or list/array of chars)
-        Aligned sequences of equal length.
-
-    Returns
-    -------
-    M : (4,4) ndarray of float
-    """
     if len(seq1) != len(seq2):
         raise ValueError("Sequences must have the same length")
 
@@ -177,18 +165,7 @@ def sequence_diversity_matrix_two_sequences(seq1, seq2):
 
 
 def get_d(P):
-    """
-    Python/Numpy translation of the Eigen C++ function get_d.
 
-    Parameters
-    ----------
-    P : array-like, shape (4,4)
-
-    Returns
-    -------
-    out : ndarray, shape (4,)
-        [d1, d2, d3, d4]
-    """
     P = np.asarray(P, dtype=float)
     if P.shape != (4, 4):
         raise ValueError("P must be a 4x4 matrix")
@@ -200,27 +177,44 @@ def get_d(P):
 
     return np.array([d1, d2, d3, d4], dtype=float)
 
+def _safe_prod_log(*xs):
+
+    xs = np.asarray(xs, dtype=float)
+
+    if np.any(xs < 0):
+        raise ValueError("All factors must be nonnegative.")
+
+    if np.any(xs == 0):
+        return 0.0
+
+    return float(np.exp(np.sum(np.log(xs))))
+
 
 def get_var(P, N, d1):
-    """
-    Python/Numpy translation of:
+    P = np.asarray(P, dtype=float)
+    tmp_p = get_p(P, d1)
+    tmp_p = np.asarray(tmp_p, dtype=float).reshape(-1)
+    p1, p2, p3, p4, p5, p6 = tmp_p[:6]
 
-        double get_var(Eigen::Matrix<double, 4, 4> P, int N, int d1)
+    # tmp = E[a - b]
+    term_a = _safe_prod_log(N, N-1, N-2, p1, p2, p3)
+    term_b = _safe_prod_log(N, N-1, N-2, p4, p5, p6)
+    tmp = term_a - term_b
 
-    Assumes you have Python versions of:
-      - get_p(P, d1)            -> returns length-6 vector/array (p1..p6)
-      - get_expect_sqrt1(N, a,b,c)
+    # tmp1 = E[a^2]
+    tmp1 = get_expect_sqrt1(N, p1, p2, p3)
 
-    Parameters
-    ----------
-    P : array-like, shape (4,4)
-    N : int
-    d1 : int
+    # tmp2 = E[ab]
+    tmp2 = _safe_prod_log(N, N-1, N-2, N-3, N-4, N-5, p1, p2, p3, p4, p5, p6)
 
-    Returns
-    -------
-    out : float
-    """
+    # tmp3 = E[b^2]
+    tmp3 = get_expect_sqrt1(N, p4, p5, p6)
+
+    out = tmp1 - 2.0 * tmp2 + tmp3 - tmp * tmp
+    return float(out)
+
+
+def get_var_old(P, N, d1):
     P = np.asarray(P, dtype=float)
     tmp_p = get_p(P, d1)              # should be shape (6,) or (6,1)
     tmp_p = np.asarray(tmp_p, dtype=float).reshape(-1)
@@ -247,21 +241,7 @@ def get_var(P, N, d1):
     out = tmp1 - 2.0 * tmp2 + tmp3 - tmp * tmp
     return float(out)
 
-def get_expect_sqrt1(N, p1, p2, p3):
-    """
-    Python translation of:
-
-    double get_expect_sqrt1(int N, double p1, double p2, double p3)
-
-    Parameters
-    ----------
-    N : int
-    p1, p2, p3 : float
-
-    Returns
-    -------
-    float
-    """
+def get_expect_sqrt1_old(N, p1, p2, p3):
     tmp  = np.log(p1*p2 + p1*p3 + p2*p3)
     tmp2 = np.log(p1*p2*p3)
 
@@ -274,22 +254,56 @@ def get_expect_sqrt1(N, p1, p2, p3):
 
     return float(np.exp(np.log(N) + np.log(N - 1) + np.log(N - 2) + tmp2 + out))
 
+def _logsumexp(log_terms):
+    """
+    Stable log(sum(exp(log_terms))) for finite / -inf log_terms.
+    """
+    log_terms = np.asarray(log_terms, dtype=float)
+
+    m = np.max(log_terms)
+    if np.isneginf(m):
+        return -np.inf
+
+    return float(m + np.log(np.sum(np.exp(log_terms - m))))
+
+def get_expect_sqrt1(N, p1, p2, p3):
+    p1 = float(p1)
+    p2 = float(p2)
+    p3 = float(p3)
+    N = float(N)
+
+    if min(p1, p2, p3) < 0:
+        raise ValueError("Probabilities must be nonnegative.")
+
+    if p1 == 0 or p2 == 0 or p3 == 0:
+        return 0.0
+
+    pair_sum = p1*p2 + p1*p3 + p2*p3
+    triple_prod = p1*p2*p3
+
+    log_terms = [
+        0.0,
+        np.log(N - 3) + np.log(p1 + p2 + p3),
+        np.log(N - 3) + np.log(N - 4) + np.log(pair_sum),
+        np.log(N - 3) + np.log(N - 4) + np.log(N - 5) + np.log(triple_prod),
+    ]
+
+    out_log = _logsumexp(log_terms)
+
+    total_log = (
+        np.log(N) + np.log(N - 1) + np.log(N - 2)
+        + np.log(triple_prod)
+        + out_log
+    )
+
+    max_log = np.log(np.finfo(float).max)
+    if total_log > max_log:
+        return np.inf
+
+    return float(np.exp(total_log))
+
 
 def get_p(P, d1):
-    """
-    Python/Numpy translation of the Eigen function get_p.
-
-    Parameters
-    ----------
-    P : array-like, shape (4,4)
-    d1 : int
-        Must be 1, 2, 3, or 4.
-
-    Returns
-    -------
-    out : ndarray, shape (6,)
-        The selected 6 entries of P in the same order as the C++ code.
-    """
     P = np.asarray(P, dtype=float)
     if P.shape != (4, 4):
         raise ValueError("P must be a 4x4 matrix")
@@ -339,6 +353,26 @@ def bowker_stat(m, B):
     stat = (m.T @ np.linalg.solve(B, m)).item()
     return stat
 
+def bowker_stat2(M):
+    M = np.asarray(M, dtype=float)
+
+    if M.shape != (4, 4):
+        raise ValueError("Input must be a 4x4 matrix.")
+
+    stat = 0.0
+    df = 0
+
+    for i in range(4):
+        for j in range(i + 1, 4):
+            a = M[i, j]
+            b = M[j, i]
+            s = a + b
+            if s > 0:
+                stat += (a - b) ** 2 / s
+                df += 1
+
+    return stat, df
+
 
 def stuart_from_counts(N):
     N = np.asarray(N)
@@ -363,26 +397,26 @@ def stuart_from_counts(N):
 
     rank = int(np.linalg.matrix_rank(V))
     if rank == 0:
-        return 0.0
+        return np.nan
     stat = float(d.T @ np.linalg.pinv(V) @ d)
     return stat
 
 
-def qs_test(H, n):
+def qs_test(H, n, size = 4):
     # Proposed test for quasi-symmetry
     P_hat = H / n
 
     d = get_d(H)
 
-    V2 = np.zeros((4, 4))
+    V2 = np.zeros((size, size))
 
     # Sum of variances
-    var = 4.0
+    var = size
     stat = 0.0
 
     # Construct covariance matrix
-    for i in range(4):
-        for j in range(i, 4):
+    for i in range(size):
+        for j in range(i, size):
             if i == j:
                 V2[i, j] = get_var(P_hat, n, i + 1)
             else:
@@ -390,17 +424,15 @@ def qs_test(H, n):
                 V2[j, i] = V2[i, j]
 
     # Compute test statistic
-    for i in range(4):
+    for i in range(size):
         stat += d[i] / np.sqrt(V2[i, i])
-        for j in range(4):
+        for j in range(size):
             if i != j:
                 var += (1 / np.sqrt(V2[i, i])* 1 / np.sqrt(V2[j, j])* V2[i, j])
 
     test_statistic = stat / np.sqrt(var)
 
     return(test_statistic)
-
-import numpy as np
 
 
 def get_covar_help(P, N, d1, d2):
@@ -683,4 +715,22 @@ def stat_distP(A):
     pi = np.linalg.solve(M, b)
 
     return pi.reshape((n, 1))
+
+def safe_standardize(x, var):
+    var = float(var)
+    x = float(x)
+
+    if var < 0:
+        # Variance should not be negative, but tiny negative values can happen numerically
+        if np.isclose(var, 0.0):
+            var = 0.0
+        else:
+            raise ValueError(f"Negative variance encountered: {var}")
+
+    if var == 0.0:
+        if x == 0.0:
+            return np.nan
+        return np.inf * np.sign(x)
+
+    return x / np.sqrt(var)
 
