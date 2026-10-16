@@ -74,13 +74,24 @@ def main():
                 [master_seed, i]
                 )
 
-                q_seed, pi_seed, seq_seed, mut_seed = seed_seq.generate_state(4)
+                q_seed, seq_seed, mut_seed = seed_seq.generate_state(3)
 
                 # sample pi for Q
-                pi = rate_matrix_cpp.get_pi(pi_seed)
+                #pi = rate_matrix_cpp.get_pi(pi_seed)
 
                 # sample random nonreversible Q with init dist pi
-                Q = rate_matrix_cpp.get_Q_nonrev_from_pi(pi, q_seed)
+                Q = rate_matrix_cpp.get_Q_nonrev(q_seed)
+                #Q = rate_matrix_cpp.get_Q_rand(q_seed)
+                #print(Q)
+                vals, vecs = np.linalg.eig(Q.T)
+                pi = np.real(vecs[:, np.argmin(np.abs(vals))])
+                pi = pi / pi.sum()   # normalize
+                # accept with same probability:
+                if return_detailed_balance(Q, pi) < np.random.rand():
+                    # sampel again
+                    i += 1
+                    continue
+
 
                 # sample ancestral sequence
                 seq0 = rand_seq_cpp.rand_seq(n,freq,int(seq_seed))
@@ -97,7 +108,7 @@ def main():
                 # calculate statistics 
                 stat_b, df_b = bowker_stat2(H)
                 stat_s = stuart_from_counts(H)
-                stat_qs = qs_test(H, n, 3)
+                #stat_qs = qs_test(H, n, 3)
                 P_hat = H / n
                 d = get_d(H)
 
@@ -114,7 +125,7 @@ def main():
                     "mut_sum": H.sum() - np.trace(H),
                     "stat_b": stat_b,
                     "stat_s": stat_s,
-                    "stat_qs": stat_qs,
+                    #"stat_qs": stat_qs,
                     "bowker_df": df_b,
                     "d1": d1,
                     "d2": d2,
@@ -125,6 +136,7 @@ def main():
 
                 count += 1
                 pbar.update(1)
+                pbar.set_postfix(rejects=i - count)
 
     pbar.close()
 

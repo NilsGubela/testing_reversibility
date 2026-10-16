@@ -128,6 +128,68 @@ Eigen::Matrix4d get_Q_nonrev(uint32_t seed = 42)
     return out / sum;
 }
 
+Eigen::Matrix4d get_Q_rand(uint32_t seed = 42)
+{
+    std::mt19937 generator(seed);
+
+    std::uniform_real_distribution<double> dis(0.0, 1.0);
+
+    Eigen::Vector4d d;
+    Eigen::Vector4d row_sum;
+
+    Eigen::Matrix4d psi;
+    Eigen::Matrix4d S = Eigen::Matrix4d::Zero();
+    Eigen::Matrix4d out;
+
+    double sum = 0.0;
+
+    // Sample stationary distribution
+    for (int i = 0; i < 4; i++) {
+
+        d(i) = dis(generator);
+
+        sum += d(i);
+    }
+
+    d /= sum;
+
+    psi = get_diag(d);
+
+    // Nonreversible constrained matrix
+    S(0,1) = dis(generator);
+    S(0,2) = dis(generator);
+    S(0,3) = dis(generator);
+
+    S(1,0) = dis(generator);
+    S(1,2) = dis(generator);
+    S(1,3) = dis(generator);
+
+    S(2,0) = dis(generator);
+    S(2,1) = dis(generator);
+    S(2,3) = dis(generator);
+
+    S(3,0) = dis(generator);
+    S(3,1) = dis(generator);
+    S(3,2) = dis(generator);
+
+    out = S * psi;
+
+    row_sum = out.rowwise().sum();
+
+    sum = 0.0;
+
+    // Set diagonal entries
+    for (int i = 0; i < 4; i++) {
+
+        out(i,i) = -row_sum(i);
+
+        sum -= out(i,i) * d(i);
+    }
+
+    // Normalize mean substitution rate
+    return out / sum;
+}
+
 Eigen::Matrix4d get_Q_nonrev_from_pi(const Eigen::Vector4d& d, uint32_t seed = 42)
 {
     std::mt19937 generator(seed);
@@ -328,6 +390,13 @@ PYBIND11_MODULE(rate_matrix_cpp, m)
         &get_Q_nonrev,
         py::arg("seed") = 42,
         "Generate nonreversible 4x4 rate matrix"
+    );
+
+    m.def(
+        "get_Q_rand",
+        &get_Q_rand,
+        py::arg("seed") = 42,
+        "Generate random 4x4 rate matrix"
     );
 
     m.def(

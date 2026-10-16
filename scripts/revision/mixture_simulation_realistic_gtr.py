@@ -115,8 +115,8 @@ def main():
                 #rs = rng.gamma(shape=alpha, scale=1/alpha, size=len(orf_lens))
                 rs = np.ones(len(orf_lens))
                 rs[2] = 4
-                #rs[0] = 1/2
-                #rs[1] = 1/2
+                rs[0] = 1/4
+                rs[1] = 1/4
 
                 t = np.random.rand()*0.005
 

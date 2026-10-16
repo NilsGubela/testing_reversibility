@@ -23,11 +23,12 @@ import rate_matrix_cpp
 def main():
     
 
-    ns = [500, 5000, 10000]
+    #ns = [500, 5000, 10000]
+    ns = [30000]
     k = 10000
-    ts = [0.001, 0.00215, 0.005, 0.01, 0.0215, 0.05]
+    ts = [0.00075, 0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5]
 
-    freq = np.array([[0.25],[0.25],[0.25],[0.25]])
+    freq = np.array([[0.3],[0.2],[0.2],[0.3]])
 
     count = 0
     i = 0
@@ -50,7 +51,7 @@ def main():
 
                 # sample random reversible Q
                 Q = rate_matrix_cpp.get_Q(q_seed)
-
+                
                 # sample ancestral sequence
                 seq0 = rand_seq_cpp.rand_seq(n,freq,int(seq_seed))
 
@@ -66,7 +67,7 @@ def main():
                 # calculate statistics 
                 stat_b, df_b = bowker_stat2(H)
                 stat_s = stuart_from_counts(H)
-                stat_qs = qs_test(H, n, 3)
+                #stat_qs = qs_test(H, n, 3)
                 P_hat = H / n
                 d = get_d(H)
 
@@ -83,7 +84,7 @@ def main():
                     "mut_sum": H.sum() - np.trace(H),
                     "stat_b": stat_b,
                     "stat_s": stat_s,
-                    "stat_qs": stat_qs,
+                    #"stat_qs": stat_qs,
                     "bowker_df": df_b,
                     "d1": d1,
                     "d2": d2,

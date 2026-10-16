@@ -100,10 +100,11 @@ for i, label in enumerate(orf_label):
             seq1 += str(record.seq)[start :]
         else:
             seq1 = str(record.seq)[start-1 : end]
-        n = len(seq1)
+        #n = len(seq1)
 
         # generate diversity matrix with reference 
         H = div_mat2_cpp.div_mat2(seq0, seq1)
+        n = np.sum(H)
         stat_s = stuart_from_counts(H)
         #stat_qs = qs_test(H, n, 3)
         stat_b, df_b = bowker_stat2(H)
@@ -111,14 +112,19 @@ for i, label in enumerate(orf_label):
         P_hat = H / n
         d = get_d(H)
 
-        d1 = safe_standardize(d[0], get_var(P_hat, n, 1))
-        d2 = safe_standardize(d[1], get_var(P_hat, n, 2))
-        d3 = safe_standardize(d[2], get_var(P_hat, n, 3))
-        d4 = safe_standardize(d[3], get_var(P_hat, n, 4))
+        if n <= 5:
+            d1, d2, d3, d4 = np.nan, np.nan, np.nan, np.nan
+        else:
+            d1 = safe_standardize(d[0], get_var(P_hat, n, 1))
+            d2 = safe_standardize(d[1], get_var(P_hat, n, 2))
+            d3 = safe_standardize(d[2], get_var(P_hat, n, 3))
+            d4 = safe_standardize(d[3], get_var(P_hat, n, 4))
 
         H_dict = {f"H_{nuc_dict[i]}_{nuc_dict[j]}": float(H[i, j]) for i in range(H.shape[0]) for j in range(H.shape[1])}
 
         results.append({
+            "n": len(seq0),
+            "n_used": n,
             "accession": accession,
             "pangolin_lineage": lineage,
             "mut_sum": H.sum() - np.trace(H),

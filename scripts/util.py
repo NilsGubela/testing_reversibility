@@ -729,7 +729,7 @@ def safe_standardize(x, var):
 
     if var == 0.0:
         if x == 0.0:
-            return np.nan
+            return 0.0
         return np.inf * np.sign(x)
 
     return x / np.sqrt(var)

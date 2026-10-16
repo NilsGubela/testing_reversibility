@@ -20,27 +20,16 @@ import rate_matrix_cpp
 
 
 def main():
-    n = 10000
+    n = 30000
     k = 10000
 
-    Q = np.array([ # HKY
-    [-1.0,  0.2,  0.6,  0.2],
-    [ 0.3, -1.0,  0.3,  0.4],
-    [ 0.6,  0.2, -1.0,  0.2],
-    [ 0.3,  0.4,  0.3, -1.0],
-    ]) 
-
-    freq = np.array([[0.15],[0.1],[0.4],[0.35]])
-
+    
+    #freq = np.array([[0.15],[0.1],[0.4],[0.35]])
 
     count = 0
     i = 0
-    res_t = []
-    res_b = []
-    res_s = []
-    res_qs = []
-    res_qs3 = []
-    res_mut = []
+
+    results = []
 
     master_seed = 12345
 
@@ -52,14 +41,26 @@ def main():
         [master_seed, i]
         )
 
-        seq_seed, mut_seed, t_seed = seed_seq.generate_state(3)
+        pi_seed, seq_seed, q_seed, mut_seed, t_seed = seed_seq.generate_state(5)
+
+        # sample initial freq
+        freq = rate_matrix_cpp.get_pi(pi_seed)
 
         # sample ancestral sequence
         seq0 = rand_seq_cpp.rand_seq(n,freq,int(seq_seed))
 
+        # sample reversible Q
+        Q = rate_matrix_cpp.get_Q(q_seed)
+
         # sample time 
-        rng = np.random.default_rng(t_seed)
-        t = rng.uniform(0, 1)
+        #rng = np.random.default_rng(t_seed)
+        #t = rng.uniform(0, 1)
+        # transform t 
+        #a = 1e-6
+        #t = a ** (1 - t)
+        # logarithmically uniform spaced in (a,1)
+        #t = 10 ** (np.log10(a) + ((count + 0.5) / k) * (-np.log10(a)))
+        t = count/k
 
         # calculate P
         P = mat_exp_cpp.mat_exp_4d(Q, t)
@@ -70,36 +71,32 @@ def main():
         # calculate sample diversity matrix
         H = div_mat_cpp.div_mat(seq0, seq1)
 
-        # check if matrix has zero non-diagonal entry
-        mat_no_diag = H.copy()
-        np.fill_diagonal(mat_no_diag, np.nan)
-        if np.any(mat_no_diag == 0):
-            stat_b = np.nan
-            stat_s = np.nan
-            stat_qs = np.nan
-            stat_qs3 = np.nan
-        
-        else:
+        stat_b, df_b = bowker_stat2(H)
+        stat_s = stuart_from_counts(H)
+        #stat_qs = qs_test(H, n, 3)
+        P_hat = H / n
+        d = get_d(H)
+        d1 = safe_standardize(d[0], get_var(P_hat, n, 1))
+        d2 = safe_standardize(d[1], get_var(P_hat, n, 2))
+        d3 = safe_standardize(d[2], get_var(P_hat, n, 3))
+        d4 = safe_standardize(d[3], get_var(P_hat, n, 4))
 
-            m = get_m(H)
-            B = get_B(H)
-            stat_b = bowker_stat(m,B)
-            stat_s = stuart_from_counts(H)
-            stat_qs = qs_test(H, n)
-            stat_qs3 = qs_test(H, n, 3)
+        results.append({
+            "t": t,
+            "mut_sum": H.sum() - np.trace(H),
+            "stat_b": stat_b,
+            "stat_s": stat_s,
+            "bowker_df": df_b,
+            "d1": d1,
+            "d2": d2,
+            "d3": d3,
+            "d4": d4
+        })
 
         i += 1
-        res_t.append(t)
-        res_b.append(stat_b)
-        res_s.append(stat_s)
-        res_qs.append(stat_qs)
-        res_qs3.append(stat_qs3)
-        np.fill_diagonal(mat_no_diag, 0)
-        res_mut.append(np.sum(mat_no_diag))
-        #res_csm.append(n*stat_csm)
         count += 1
         pbar.update(1)
-        pbar.set_postfix(rejects=i - count)
+        pbar.set_postfix(rejects=i-count)
 
     pbar.close()
 
@@ -110,9 +107,11 @@ def main():
     out_path = out_dir / "figure1/result_nonstationary_reversible.csv"
 
     # Save as one-column CSV
-    pd.DataFrame({"t": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "QS3": res_qs3, "mut_sum": res_mut}).to_csv(out_path, index=False)
+    #pd.DataFrame({"t": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "QS3": res_qs3, "mut_sum": res_mut}).to_csv(out_path, index=False)
+    results_df = pd.DataFrame(results)
+    results_df.to_csv(out_path, index=False)
 
-    print(f"Saved {len(res_b)} sims to: {out_path}")
+    print(f"Saved {len(results)} sims to: {out_path}")
 
 
 if __name__ == "__main__":

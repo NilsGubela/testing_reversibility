@@ -20,25 +20,14 @@ import rate_matrix_cpp
 
 
 def main():
-    n = 10000
+    n = 30000
     k = 10000
     t1 = 0.5
 
-    Q = 1/(8.7692316)*np.array([[-6, 1, 2, 3], [4, -15, 5, 6],[2, 3, -6, 1],[5, 6, 4, -15]])
-
-    freq = np.array([[0.3461538],[0.1538462],[0.3461538],[0.1538462]])
-    # calculate P1
-    P1 = mat_exp_cpp.mat_exp_4d(Q, t1)
-    
-
     count = 0
     i = 0
-    res_t = []
-    res_b = []
-    res_s = []
-    res_qs = []
-    res_mut = []
-    res_qs3 = []
+
+    results = []
 
     master_seed = 12345
 
@@ -50,17 +39,33 @@ def main():
         [master_seed, i]
         )
 
-        seq_seed, mut1_seed, mut2_seed, t_seed = seed_seq.generate_state(4)
+        seq_seed, q_seed, mut1_seed, mut2_seed = seed_seq.generate_state(4)
+
+        # sample random UNREST
+        Q = rate_matrix_cpp.get_Q_nonrev(q_seed)
+
+        # get stationary distribution
+        vals, vecs = np.linalg.eig(Q.T)
+        pi = np.real(vecs[:, np.argmin(np.abs(vals))])
+        pi = pi / pi.sum()   # normalize
+        if return_detailed_balance(Q, pi) < 1:
+            # sampel again
+            i += 1
+            continue
 
         # sample ancestral sequence
-        seq0 = rand_seq_cpp.rand_seq(n,freq,int(seq_seed))
+        seq0 = rand_seq_cpp.rand_seq(n,pi,int(seq_seed))
 
         # sample time 
-        rng = np.random.default_rng(t_seed)
-        t2 = rng.uniform(0, 1)
+        #rng = np.random.default_rng(t_seed)
+        #t2 = rng.uniform(0, 1)
+        t2 = count/k
 
-        # calculate P
+        # calculate P2
         P2 = mat_exp_cpp.mat_exp_4d(Q, t2)
+
+        # calculate P1
+        P1 = mat_exp_cpp.mat_exp_4d(Q, t1)
 
         # simulate evolution 1
         seq1 = seq_sim_cpp.seq_sim(seq0,P1,int(mut1_seed))
@@ -68,36 +73,32 @@ def main():
         # simulate evolution 2
         seq2 = seq_sim_cpp.seq_sim(seq0,P2,int(mut2_seed))
 
-        # calculate sample diversity matrix of cherry
+        # calculate sample diversity matrix
         H = div_mat_cpp.div_mat(seq1, seq2)
 
-        # check if matrix has zero non-diagonal entry
-        mat_no_diag = H.copy()
-        np.fill_diagonal(mat_no_diag, np.nan)
-        if np.any(mat_no_diag == 0):
-            stat_b = np.nan
-            stat_s = np.nan
-            stat_qs = np.nan
-            stat_qs3 = np.nan
-        
-        else:
+        stat_b, df_b = bowker_stat2(H)
+        stat_s = stuart_from_counts(H)
+        #stat_qs = qs_test(H, n, 3)
+        P_hat = H / n
+        d = get_d(H)
+        d1 = safe_standardize(d[0], get_var(P_hat, n, 1))
+        d2 = safe_standardize(d[1], get_var(P_hat, n, 2))
+        d3 = safe_standardize(d[2], get_var(P_hat, n, 3))
+        d4 = safe_standardize(d[3], get_var(P_hat, n, 4))
 
-            m = get_m(H)
-            B = get_B(H)
-            stat_b = bowker_stat(m,B)
-            stat_s = stuart_from_counts(H)
-            stat_qs = qs_test(H, n)
-            stat_qs3 = qs_test(H, n, 3)
-
+        results.append({
+            "t2": t2,
+            "mut_sum": H.sum() - np.trace(H),
+            "stat_b": stat_b,
+            "stat_s": stat_s,
+            "bowker_df": df_b,
+            "d1": d1,
+            "d2": d2,
+            "d3": d3,
+            "d4": d4
+        })
 
         i += 1
-        res_t.append(t2)
-        res_b.append(stat_b)
-        res_s.append(stat_s)
-        res_qs.append(stat_qs)
-        res_qs3.append(stat_qs3)
-        np.fill_diagonal(mat_no_diag, 0)
-        res_mut.append(np.sum(mat_no_diag))
         count += 1
         pbar.update(1)
         pbar.set_postfix(rejects=i - count)
@@ -110,8 +111,10 @@ def main():
 
     out_path = out_dir / "figure1/result_stationary_nonreversible_cherry.csv"
 
-    pd.DataFrame({"t2": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "QS3": res_qs3, "mut_sum": res_mut}).to_csv(out_path, index=False)
-    print(f"Saved {len(res_b)} sims to: {out_path}")
+    #pd.DataFrame({"t2": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "QS3": res_qs3, "mut_sum": res_mut}).to_csv(out_path, index=False)
+    results_df = pd.DataFrame(results)
+    results_df.to_csv(out_path, index=False)
+    print(f"Saved {len(results)} sims to: {out_path}")
 
 
 if __name__ == "__main__":
