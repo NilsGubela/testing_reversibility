@@ -23,9 +23,6 @@ def main():
     n = 30000
     k = 10000
 
-    
-    #freq = np.array([[0.15],[0.1],[0.4],[0.35]])
-
     count = 0
     i = 0
 
@@ -53,13 +50,6 @@ def main():
         Q = rate_matrix_cpp.get_Q(q_seed)
 
         # sample time 
-        #rng = np.random.default_rng(t_seed)
-        #t = rng.uniform(0, 1)
-        # transform t 
-        #a = 1e-6
-        #t = a ** (1 - t)
-        # logarithmically uniform spaced in (a,1)
-        #t = 10 ** (np.log10(a) + ((count + 0.5) / k) * (-np.log10(a)))
         t = count/k
 
         # calculate P
@@ -73,13 +63,7 @@ def main():
 
         stat_b, df_b = bowker_stat2(H)
         stat_s = stuart_from_counts(H)
-        #stat_qs = qs_test(H, n, 3)
-        P_hat = H / n
-        d = get_d(H)
-        d1 = safe_standardize(d[0], get_var(P_hat, n, 1))
-        d2 = safe_standardize(d[1], get_var(P_hat, n, 2))
-        d3 = safe_standardize(d[2], get_var(P_hat, n, 3))
-        d4 = safe_standardize(d[3], get_var(P_hat, n, 4))
+        stat_qs, df_qs = qs_test_with_df(H,n)
 
         results.append({
             "t": t,
@@ -87,10 +71,8 @@ def main():
             "stat_b": stat_b,
             "stat_s": stat_s,
             "bowker_df": df_b,
-            "d1": d1,
-            "d2": d2,
-            "d3": d3,
-            "d4": d4
+            "stat_qs": stat_qs,
+            "qs_df": df_qs,
         })
 
         i += 1
@@ -104,10 +86,8 @@ def main():
     out_dir = ROOT2 / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    out_path = out_dir / "figure1/result_nonstationary_reversible.csv"
+    out_path = out_dir / "simulation/result_nonstationary_reversible.csv"
 
-    # Save as one-column CSV
-    #pd.DataFrame({"t": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "QS3": res_qs3, "mut_sum": res_mut}).to_csv(out_path, index=False)
     results_df = pd.DataFrame(results)
     results_df.to_csv(out_path, index=False)
 

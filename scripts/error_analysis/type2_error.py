@@ -76,13 +76,8 @@ def main():
 
                 q_seed, seq_seed, mut_seed = seed_seq.generate_state(3)
 
-                # sample pi for Q
-                #pi = rate_matrix_cpp.get_pi(pi_seed)
-
                 # sample random nonreversible Q with init dist pi
                 Q = rate_matrix_cpp.get_Q_nonrev(q_seed)
-                #Q = rate_matrix_cpp.get_Q_rand(q_seed)
-                #print(Q)
                 vals, vecs = np.linalg.eig(Q.T)
                 pi = np.real(vecs[:, np.argmin(np.abs(vals))])
                 pi = pi / pi.sum()   # normalize
@@ -108,29 +103,18 @@ def main():
                 # calculate statistics 
                 stat_b, df_b = bowker_stat2(H)
                 stat_s = stuart_from_counts(H)
-                #stat_qs = qs_test(H, n, 3)
-                P_hat = H / n
-                d = get_d(H)
 
-                d1 = safe_standardize(d[0], get_var(P_hat, n, 1))
-                d2 = safe_standardize(d[1], get_var(P_hat, n, 2))
-                d3 = safe_standardize(d[2], get_var(P_hat, n, 3))
-                d4 = safe_standardize(d[3], get_var(P_hat, n, 4))
-
+                stat_qs, df_qs = qs_test_with_df(H,n)
                 i += 1
-                #res_max_db_deviation.append(return_detailed_balance(Q,pi))
                 results.append({
                     "t": t,
                     "n": n,
                     "mut_sum": H.sum() - np.trace(H),
                     "stat_b": stat_b,
                     "stat_s": stat_s,
-                    #"stat_qs": stat_qs,
                     "bowker_df": df_b,
-                    "d1": d1,
-                    "d2": d2,
-                    "d3": d3,
-                    "d4": d4,
+                    "stat_qs": stat_qs,
+                    "qs_df": df_qs,
                     'db_deviation': return_detailed_balance(Q, pi),
                 })
 
@@ -144,10 +128,6 @@ def main():
     out_dir = ROOT2 / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    #out_path = out_dir / "error_analysis/result_type2.csv"
-
-    # Save as one-column CSV
-    #pd.DataFrame({"t": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "d1": res_d1, "d2": res_d2, "d3": res_d3, "d4": res_d4, "mut_sum": res_mut, "db_deviation": res_db_deviation, "n": res_n}).to_csv(out_path, index=False)
     results_df = pd.DataFrame(results)
     results_df.to_csv(out_path, index=False)
     print(f"Saved {len(results_df)} sims to: {out_path}")

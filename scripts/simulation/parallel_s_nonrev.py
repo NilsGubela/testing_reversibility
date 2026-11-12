@@ -78,13 +78,7 @@ def main():
 
         stat_b, df_b = bowker_stat2(H)
         stat_s = stuart_from_counts(H)
-        #stat_qs = qs_test(H, n, 3)
-        P_hat = H / n
-        d = get_d(H)
-        d1 = safe_standardize(d[0], get_var(P_hat, n, 1))
-        d2 = safe_standardize(d[1], get_var(P_hat, n, 2))
-        d3 = safe_standardize(d[2], get_var(P_hat, n, 3))
-        d4 = safe_standardize(d[3], get_var(P_hat, n, 4))
+        stat_qs, df_qs = qs_test_with_df(H,n)
 
         results.append({
             "t2": t2,
@@ -92,10 +86,8 @@ def main():
             "stat_b": stat_b,
             "stat_s": stat_s,
             "bowker_df": df_b,
-            "d1": d1,
-            "d2": d2,
-            "d3": d3,
-            "d4": d4
+            "stat_qs": stat_qs,
+            "qs_df": df_qs,
         })
 
         i += 1
@@ -109,9 +101,8 @@ def main():
     out_dir = ROOT2 / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    out_path = out_dir / "figure1/result_stationary_nonreversible_cherry.csv"
+    out_path = out_dir / "simulation/result_stationary_nonreversible_cherry.csv"
 
-    #pd.DataFrame({"t2": res_t, "Bowker": res_b, "Stuart": res_s, "QS": res_qs, "QS3": res_qs3, "mut_sum": res_mut}).to_csv(out_path, index=False)
     results_df = pd.DataFrame(results)
     results_df.to_csv(out_path, index=False)
     print(f"Saved {len(results)} sims to: {out_path}")

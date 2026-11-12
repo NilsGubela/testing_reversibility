@@ -2,6 +2,7 @@ import numpy as np
 import numpy as np
 from scipy.linalg import expm
 
+np.seterr(divide='ignore')
 
 def random_reversible_Q4(seed=1):
     """
@@ -433,6 +434,51 @@ def qs_test(H, n, size = 4):
     test_statistic = stat / np.sqrt(var)
 
     return(test_statistic)
+
+def qs_test_with_df(H, n, size=3, tol=1e-12):
+    H = np.asarray(H, dtype=float)
+    P_hat = H / n
+    d = np.asarray(get_d(H), dtype=float)
+
+    variances = np.array([
+        get_var(P_hat, n, i + 1)
+        for i in range(size)
+    ])
+
+    variance_scale = max(1.0, np.max(np.abs(variances)))
+    numerical_tol = tol * variance_scale
+    active = variances > numerical_tol
+
+    if not np.any(active):
+        return np.nan, 0
+
+    indices = np.flatnonzero(active)
+    if len(indices) == 4:
+        indices = indices[:3]
+    d_active = d[indices]
+
+    covariance = np.empty((len(indices), len(indices)))
+
+    for row, i in enumerate(indices):
+        for col, j in enumerate(indices):
+            if j < i:
+                continue
+            elif i == j:
+                covariance[row, col] = variances[i]
+            else:
+                covariance[row, col] = get_covar(P_hat,n,i + 1,j + 1)
+                covariance[col, row] = covariance[row, col]
+
+
+    covariance = 0.5 * (covariance + covariance.T)
+
+    eigenvalues = np.linalg.eigvalsh(covariance)
+    rank_tol = tol * max(1.0, np.max(np.abs(eigenvalues)))
+    df = int(np.sum(eigenvalues > rank_tol))
+
+    statistic = d_active @ np.linalg.pinv(covariance, rcond=tol) @ d_active
+
+    return float(max(0.0, statistic)), df
 
 
 def get_covar_help(P, N, d1, d2):
