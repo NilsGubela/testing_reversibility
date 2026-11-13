@@ -1,81 +1,94 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.gridspec import GridSpec
+import numpy as np
 from pathlib import Path
+from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
-from scipy import stats
-from scipy.stats import norm
 from util import * 
 
 ROOT = Path(__file__).resolve().parents[2]
-out_dir = ROOT / "results" / "figure3"
-
 fig_dir = ROOT / "figs"
+out_dir = ROOT / "results" / "simulation"
 
-files = [out_dir / "result_100000_500_1p0.csv",out_dir / "result_100000_5000_1p0.csv", out_dir / "result_100000_10000_1p0.csv"]
+files = [
+    out_dir/"result_mixture_stat_rev.csv",
+    out_dir/"result_mixture_realistic_sitehet.csv",
+    out_dir/"result_mixture_gtr.csv"]
 
-all_res = []
-for file in files:
-    tmp_df = pd.read_csv(file)
-    all_res.append(tmp_df["stat"])
+eval_cols = [2,2,2]
 
-x = np.linspace(-5, 5, 500)
-pdf = norm.pdf(x)#(1/np.sqrt(2*np.pi)) * np.exp(-0.5 * x**2)
+alpha = 0.05
+
+legend_elements = [
+    Patch(facecolor="red", label="non-S/non-R"),
+    Patch(facecolor="tab:orange",  label="non-S/R"),
+    Patch(facecolor="tab:purple",  label="S/non-R"),
+    Patch(facecolor="steelblue",  label="S/R"),
+    Patch(facecolor="lightgrey",  label="non-S/NA"),
+]
+
 
 with plt.rc_context(STYLE):
-    fig, ax = plt.subplots(3,3,figsize=(single_half_col, 4))
-    for i, res in enumerate(all_res):
-        # histogram
-        ax[0,i].hist(res, bins = 100, density = True, color = "steelblue")
-        ax[0,i].plot(x, pdf, label="N(0,1) pdf", color = "red")
-        ax[0,i].set_xlabel(r"$\hat{d}_{ijk}$")
+    fig, ax = plt.subplots(
+    1, 4,
+    figsize=(double_col,  1.3),
+    gridspec_kw={"width_ratios": [1, 1,1, 0.25]}
+    )
 
-        # QQ plot
-        stats.probplot(res, dist="norm", sparams=(0, 1), plot=ax[1,i])
-        points_line = ax[1,i].lines[0]
-        ref_line = ax[1,i].lines[1]
-        # Customize points (marker color, size, transparency)
-        points_line.set_markerfacecolor("steelblue")
-        points_line.set_markeredgecolor("steelblue")
-        points_line.set_markersize(3)
-        points_line.set_alpha(0.6)
-        # Customize reference line
-        ref_line.set_color("red")
-        ref_line.set_linewidth(2)
-        ax[1,i].set_title("")
-        ax[1,i].set_ylabel("")
-        ax[1,i].set_xlabel("")
+    for i,file in enumerate(files):
+        data = pd.read_csv(file)
 
-        # cumulative dist 
-        res = np.asarray(res)
-        res = res[~np.isnan(res)]
-        # One-sample KS test vs standard normal N(0,1)
-        ks = stats.kstest(res, cdf="norm", args=(0, 1))
-        print(i, "KS-statistic:", np.round(ks.statistic,4 ))
-        res_sorted = np.sort(res)
-        n = res_sorted.size
-        # ECDF
-        ecdf_y = np.arange(1, n + 1) / n
-        # Standard normal CDF on a grid
-        #x = np.linspace(res_sorted[0], res_sorted[-1], 500)
-        cdf_y = norm.cdf(x)  # N(0,1)
-        ax[2,i].step(res_sorted, ecdf_y, where="post", label="ECDF(res)", color="black")
-        ax[2,i].plot(x, cdf_y, label="CDF N(0,1)", color="red", linewidth=2, linestyle = "dashed")
+        data = get_pvalue(data, "stat_b", "bowker_p", df = None, df_col = "bowker_df")
+        data = get_pvalue(data, "stat_s", "stuart_p", df = 3)
+        data = get_pvalue(data, "stat_qs", "qs_p", df = None, df_col = "qs_df")
 
-        ax[2,i].set_xlabel("x")
-        ax[1,i].set_xlabel("Theoretical quantiles")
-        # beauty work
-        if i > 0:
-            for k in range(3):
-                ax[k,i].set_yticklabels([])
+        # evaluate testing procedure
+        data = evaluate_test(data, "bowker_p", "bowker_decision")
+        data = evaluate_test(data, "stuart_p", "stuart_decision")
+        data = evaluate_test(data, "qs_p", "qs_decision")
 
-    ax[2,0].set_ylabel("Cumulative probability")    
-    ax[1,0].set_ylabel("Sample quantiles")
-    ax[0,0].set_ylabel("Density")
+        # total decision
+        data["total_decision"] = np.select(
+            [
+                data["bowker_decision"] == 0,
+                data["bowker_decision"].isna(),
+                data["stuart_decision"] == 0,
+                data["stuart_decision"].isna(),
+                data["qs_decision"] == 0,
+                data["qs_decision"].isna(),
+            ],
+            [4, 0, 3, 0, 2, 0,],
+            default = 1
+        )
 
-    plt.tight_layout()
+        # bar plot per region
+        orf_label2 = ["1a/b", "S", "rest", "full"]
 
-    #plt.savefig(fig_dir / "figure3.svg")
-    plt.savefig(fig_dir / "figure3.pdf")
-    plt.savefig(fig_dir / "figure3.png")
-    plt.show()
+        colors = ["lightgrey", "red", "tab:orange", "tab:purple", "steelblue"]
+        
+        for j, region in enumerate(orf_label2):
+            tmp = data[(data["region"] == region)]
+            counts = tmp["total_decision"].value_counts().reindex([0, 1, 2, 3,4], fill_value=0)
+            bottom = 0
+            for val, count in counts.items():
+                ax[i].bar(j+0.5, count, bottom=bottom, label=str(val), color = colors[val])
+                bottom += count
+
+                if region == "full":
+                    print(colors[val], count/500)
+
+        ax[i].set_xticks(np.arange(4)+0.5)
+        ax[i].set_xticklabels(orf_label2)
+        ax[i].set_yticks([0, 250, 500])
+        ax[i].set_yticklabels([0, 0.5, 1])
+        ax[i].set_ylabel("Density")
+        ax[i].set_xlabel("Region")
+    
+    ax[3].legend(handles=legend_elements,frameon = False)
+    ax[3].axis('off')
+
+
+    fig.tight_layout()
+    plt.savefig(fig_dir / "figure3.pdf",dpi = 300, bbox_inches="tight" )
