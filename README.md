@@ -9,153 +9,118 @@ The code for the simulation studies is found at [scripts/simulation](https://git
 
 # Setting Up the Virtual Environment
 
-From the project root:
+The code was developed for Python 3 and macOS. Install Eigen separately; the build script expects it at `/opt/homebrew/include/eigen3`.
 
 ```bash
 python3 -m venv .venv
-```
-
-Activate the environment:
-
-```bash
 source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install \
+  numpy scipy matplotlib pandas biopython pybind11 tqdm tabulate
+brew install eigen
 ```
-
-Verify:
-
-```bash
-which python
-```
-
-Expected output:
-
-```text
-.../quasi_symmetry/.venv/bin/python
-```
-
----
-
-# Installing Python Dependencies
-
-Install required packages:
-
-```bash
-pip install \
-    numpy \
-    scipy \
-    matplotlib \
-    pandas \
-    pybind11 \
-    tqdm
-```
-
----
 
 # Compiling the C++ Extensions
 
-Move into the C++ directory:
+The Python scripts import extensions from `scripts/build/`.
 
 ```bash
-cd cpp
+chmod +x scripts/cpp/build.sh
+scripts/cpp/build.sh
+PYTHONPATH=scripts/build python scripts/cpp/test.py
 ```
+## Run the simulations
 
-Make the build script executable:
+Each command writes its CSV to `results/simulation/`. These jobs are computationally intensive; the scripts use fixed master seeds (`12345`) for reproducibility.
 
 ```bash
-chmod +x build.sh
+python scripts/simulation/lin_nons_rev.py
+python scripts/simulation/parallel_nons_rev.py
+python scripts/simulation/lin_s_nonrev.py
+python scripts/simulation/parallel_s_nonrev.py
+python scripts/simulation/ababneh_nonstationary_reversible_f81.py
+python scripts/simulation/mixture_simulation_stat_rev.py
+python scripts/simulation/mixture_simulation_sitehet.py
+python scripts/simulation/mixture_simulation_gtr.py
 ```
 
-Compile all extension modules:
-
-```bash
-./build.sh
-```
-
-Compiled modules will appear in:
+The first four scripts generate the stationary/nonstationary and cherry-picking simulation results; the last four generate the mixture-model results. The corresponding files are:
 
 ```text
-build/
+result_nonstationary_reversible.csv
+result_nonstationary_reversible_cherry.csv
+result_stationary_nonreversible.csv
+result_stationary_nonreversible_cherry.csv
+result_ababneh_nonstationary_reversible_f81.csv
+result_mixture_stat_rev.csv
+result_mixture_realistic_sitehet.csv
+result_mixture_gtr.csv
 ```
 
-Example:
-
-```text
-rand_seq_cpp.cpython-314-darwin.so
-seq_sim_cpp.cpython-314-darwin.so
-mat_exp_cpp.cpython-314-darwin.so
-...
-```
-
-# Running Experiments
-
-Activate the virtual environment:
+## Run error analyses (type-1 & type-2)
 
 ```bash
-source .venv/bin/activate
+python scripts/error_analysis/type1_error.py
+python scripts/error_analysis/type2_error.py --vary divergence
+python scripts/error_analysis/type2_error.py --vary sequence_length
+python scripts/error_analysis/type2_error.py --vary db_deviation
 ```
 
-Then run experiments:
+These commands create `results/error_analysis/result_type1.csv`, `result_type2_divergence.csv`, `result_type2_length.csv`, and `result_type2_db_deviation.csv`.
 
-```bash
-cd scripts/python/experiments
+## Prepare the SARS-CoV-2 data
 
-python stationary_nonreversible.py
-```
-
----
-
-# Sequence Analysis
-
-## Downloading SARS-CoV-2 Genome Sequences
-
-Complete SARS-CoV-2 genomes from human hosts in Germany were downloaded from the NCBI Virus database. The following filters were applied:
-
-* Sequence type: Nucleotide
-* Completeness: Complete genomes only
-* Host: Human (*Homo sapiens*)
-* Country: Germany
-
-The filtered dataset can be downloaded from:
-
-https://www.ncbi.nlm.nih.gov/labs/virus/vssi/#/virus?SeqType_s=Nucleotide&VirusLineage_ss=taxid:2697049&Completeness_s=complete&HostLineage_ss=Homo%20sapiens%20(human),%20taxid:9606&BaselineSurveillance_s=include&Country_s=Germany
-
-## Reference Genome
-
-All sequences were aligned against the Wuhan-Hu-1 reference genome (NC_045512.2), available from NCBI:
-
-https://www.ncbi.nlm.nih.gov/nuccore/NC_045512.2?report=fasta
-
-Save the reference sequence as:
+The sequence analysis requires these files:
 
 ```text
+data/raw/sequences.csv
 data/raw/wuhan_reference.fasta
+data/processed/sequences_filtered.fasta
+data/processed/aligned.fasta
 ```
 
-## Sequence Alignment
+Download complete human SARS-CoV-2 nucleotide genomes from [NCBI Virus](https://www.ncbi.nlm.nih.gov/labs/virus/vssi/) using:
 
-Sequence alignment was performed using MAFFT.
+- lineage: SARS-CoV-2 (`taxid:2697049`)
+- sequence type: nucleotide
+- completeness: complete
+- host: *Homo sapiens*
+- country: Germany
 
-### Installation
+Export the sequence metadata as `data/raw/sequences.csv` (including `Accession`, `Pangolin`, and `Collection_Date`) and the filtered FASTA sequences as `data/processed/sequences_filtered.fasta`. Download Wuhan-Hu-1 (`NC_045512.2`) as `data/raw/wuhan_reference.fasta`.
 
-Install MAFFT via Conda:
+Install MAFFT and align the downloaded sequences while preserving reference coordinates:
 
 ```bash
 conda install -c bioconda mafft
+mkdir -p data/processed
+mafft --keeplength --addfragments \
+  data/processed/sequences_filtered.fasta \
+  data/raw/wuhan_reference.fasta \
+  > data/processed/aligned.fasta
 ```
-
-### Alignment
-
-The downloaded sequences were aligned to the reference genome using the `--addfragments` option while preserving the reference coordinate system with `--keeplength`:
+## Analyze SARS-CoV-2 sequences
 
 ```bash
-mafft --keeplength --addfragments \
-    data/processed/sequences_filtered.fasta \
-    data/processed/wuhan_reference.fasta \
-    > data/processed/aligned.fasta
+python scripts/sequence_analysis/test_all_orfs.py
 ```
 
-The resulting alignment is written to:
+This creates `results/sequence_analysis/all_orfs.csv` for the `1a/b`, spike (`S`), remaining, and full-genome regions.
 
-```text
-data/processed/aligned.fasta
+## Recreate the manuscript figures
+
+Run after the required simulation and sequence-analysis CSVs exist:
+
+```bash
+python scripts/plotting/figure1.py
+python scripts/plotting/figure2.py
+python scripts/plotting/figure3.py
+python scripts/plotting/figure4.py
+python scripts/plotting/figure5.py
+python scripts/plotting/figureD1.py
 ```
+
+The resulting PDFs are written to `figs/` as `figure1.pdf`–`figure5.pdf` and `figureD1.pdf`.
+
+
+
