@@ -1,8 +1,8 @@
 ![](https://img.shields.io/github/v/release/NilsGubela/testing_reversibility)
 
-# Testing reversibility in viral evolution
+# Testing reversibility in sequence evolution
 
-This repository contains codes to reproduce the manuscript "A statistical framework to distinguish stationarity from reversibility in viral evolution". 
+This repository contains codes to reproduce the manuscript "A statistical framework to distinguish stationarity from reversibility in sequence evolution". 
 The code for the simulation studies is found at [scripts/simulation](https://github.com/NilsGubela/testing_reversibility/tree/main/scripts/simulation) and scripts for the analysis of SARS-CoV-2 genomic sequences at [scripts/sequence_analysis](https://github.com/NilsGubela/testing_reversibility/tree/main/scripts/sequence_analysis). Functions are written in C++ and compiled to python modules.
 
 ---
